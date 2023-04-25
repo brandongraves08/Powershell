@@ -14,14 +14,19 @@ $iloPasswordPlainText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runt
 function Get-iLOVersion {
   param($iloIPAddress, $iloUsername, $iloPassword)
 
-  # Establish a connection to iLO
-  $iloConnection = Connect-HPiLO -Server $iloIPAddress -Username $iloUsername -Password $iloPassword -DisableCertificateAuthentication
+  try {
+    # Establish a connection to iLO
+    $iloConnection = Connect-HPiLO -Server $iloIPAddress -Username $iloUsername -Password $iloPassword -DisableCertificateAuthentication -ErrorAction Stop
 
-  # Get iLO version
-  $iloVersion = $iloConnection.ServerInfo.iLOVersion
+    # Get iLO version
+    $iloVersion = $iloConnection.ServerInfo.iLOVersion
 
-  # Return the iLO version
-  return $iloVersion
+    # Return the iLO version
+    return $iloVersion
+  } catch {
+    Write-Host "Unable to connect to iLO at $iloIPAddress"
+    return $null
+  }
 }
 
 # Function to convert IP address to a decimal number
@@ -50,9 +55,11 @@ $iloVersions = @()
 for ($ipDecimal = $ipStartDecimal; $ipDecimal -le $ipEndDecimal; $ipDecimal++) {
   $iloIPAddress = Convert-DecimalToIP -decimal $ipDecimal
   $iloVersion = Get-iLOVersion -iloIPAddress $iloIPAddress -iloUsername $iloUsername -iloPassword $iloPasswordPlainText
-  $iloVersions += @{
-    'address' = $iloIPAddress
-    'iLOVersion' = $iloVersion
+  if ($iloVersion -ne $null) {
+    $iloVersions += @{
+      'address' = $iloIPAddress
+      'iLOVersion' = $iloVersion
+    }
   }
 }
 
