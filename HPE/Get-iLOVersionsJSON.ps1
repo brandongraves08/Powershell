@@ -1,6 +1,10 @@
 $ipRangeStart = "192.168.1.1"
 $ipRangeEnd = "192.168.1.254"
 $outputJsonFile = "ilo_versions.json"
+$logFile = "ilo_versions_log.txt"
+
+# Start logging output to a log file
+Start-Transcript -Path $logFile
 
 # Import the HPiLOCmdlets module
 Import-Module HPiLOCmdlets
@@ -24,7 +28,7 @@ function Get-iLOVersion {
     # Return the iLO version
     return $iloVersion
   } catch {
-    Write-Host "Unable to connect to iLO at $iloIPAddress"
+    Write-Host "Unable to connect to iLO at $iloIPAddress. Error details: $($_.Exception.Message)"
     return $null
   }
 }
@@ -48,3 +52,6 @@ foreach ($iloIPAddress in $ipRange) {
 
 # Write the iLO version information to the JSON file
 $iloVersions | ConvertTo-Json | Set-Content -Path $outputJsonFile
+
+# Stop logging output to the log file
+Stop-Transcript
