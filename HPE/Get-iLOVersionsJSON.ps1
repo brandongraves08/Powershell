@@ -6,8 +6,8 @@ $logFile = "ilo_versions_log.txt"
 # Start logging output to a log file
 Start-Transcript -Path $logFile
 
-# Import the HPiLOCmdlets module
-Import-Module HPiLOCmdlets
+# Import the HPEiLOCmdlets module
+Import-Module HPEiLOCmdlets
 
 # Prompt the user for iLO username and password
 $iloUsername = Read-Host -Prompt "Enter iLO username"
@@ -20,7 +20,7 @@ function Get-iLOVersion {
 
   try {
     # Establish a connection to iLO
-    $iloConnection = Connect-HPiLO -Server $iloIPAddress -Username $iloUsername -Password $iloPassword -DisableCertificateAuthentication -ErrorAction Stop
+    $iloConnection = Connect-HPEiLO -Server $iloIPAddress -Username $iloUsername -Password $iloPassword -DisableCertificateAuthentication -ErrorAction Stop
 
     # Get iLO version
     $iloVersion = $iloConnection.ServerInfo.iLOVersion
