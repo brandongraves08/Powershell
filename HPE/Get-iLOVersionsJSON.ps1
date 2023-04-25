@@ -33,8 +33,30 @@ function Get-iLOVersion {
   }
 }
 
+# Function to generate the list of IP addresses to check
+function Get-IPRange {
+  param($startIP, $endIP)
+
+  $start = [System.Net.IPAddress]::Parse($startIP).GetAddressBytes()
+  [Array]::Reverse($start)
+  $startInt = [System.BitConverter]::ToUInt32($start, 0)
+
+  $end = [System.Net.IPAddress]::Parse($endIP).GetAddressBytes()
+  [Array]::Reverse($end)
+  $endInt = [System.BitConverter]::ToUInt32($end, 0)
+
+  $ipRange = @()
+  for ($i = $startInt; $i -le $endInt; $i++) {
+    $ipBytes = [System.BitConverter]::GetBytes($i)
+    [Array]::Reverse($ipBytes)
+    $ipRange += ([System.Net.IPAddress]::Parse(($ipBytes -join '.'))).ToString()
+  }
+
+  return $ipRange
+}
+
 # Generate the list of IP addresses to check
-$ipRange = [System.Net.IPAddress]::Parse($ipRangeStart)..[System.Net.IPAddress]::Parse($ipRangeEnd) | ForEach-Object { $_.GetAddressBytes() -join '.' }
+$ipRange = Get-IPRange -startIP $ipRangeStart -endIP $ipRangeEnd
 
 # Initialize the array to store iLO version information
 $iloVersions = @()
