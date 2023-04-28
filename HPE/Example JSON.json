@@ -1,0 +1,28 @@
+#Example JSON 
+
+{
+  "HostGroups": [
+    {
+      "GroupName": "Group1",
+      "Servers": [
+        {
+          "IP": "192.168.1.100"
+        },
+        {
+          "IP": "192.168.1.101"
+        }
+      ]
+    },
+    {
+      "GroupName": "Group2",
+      "Servers": [
+        {
+          "IP": "192.168.1.102"
+        },
+        {
+          "IP": "192.168.1.103"
+        }
+      ]
+    }
+  ]
+}
