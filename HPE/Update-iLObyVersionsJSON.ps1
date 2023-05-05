@@ -1,44 +1,49 @@
-# Import HPE iLO cmdlets module
-Import-Module HPEiLOCmdlets
+$firmwareFilePathiLO4 = "path_to_iLO4_firmware_file"
+$firmwareFilePathiLO5 = "path_to_iLO5_firmware_file"
+$serversJsonFile = "servers.json"
 
-# Define the location of your iLO firmware files and JSON file
-$ilo4FirmwareFilePath = "C:\path\to\your\iLO4_firmware_file.bin"
-$ilo5FirmwareFilePath = "C:\path\to\your\iLO5_firmware_file.bin"
-$jsonFilePath = "C:\path\to\your\servers_list.json"
+# Read the JSON file with the server information
+$servers = Get-Content -Path $serversJsonFile | ConvertFrom-Json
 
-# Function to update iLO firmware on a server
-function Update-ILOFirmware {
-    param (
-        $IPAddress,
-        $Credential,
-        $iLOVersion
-    )
+# Import the HPiLOCmdlets module
+Import-Module HPiLOCmdlets
 
-    try {
-        # Connect to iLO
-        $iLOConnection = Connect-HPEiLO -IP $IPAddress -Credential $Credential -DisableCertificateAuthentication
+# Prompt the user for iLO username and password
+$iloUsername = Read-Host -Prompt "Enter iLO username"
+$iloPassword = Read-Host -Prompt "Enter iLO password" -AsSecureString
+$iloPasswordPlainText = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($iloPassword))
 
-        # Select the appropriate firmware file based on the iLO version
-        $firmwareFilePath = ""
-        if ($iLOVersion -eq "iLO4") {
-            $firmwareFilePath = $ilo4FirmwareFilePath
-        } elseif ($iLOVersion -eq "iLO5") {
-            $firmwareFilePath = $ilo5FirmwareFilePath
-        } else {
-            Write-Host "Unsupported iLO version for server $IPAddress" -ForegroundColor Yellow
-            Disconnect-HPEiLO -Connection $iLOConnection
-            return
-        }
+# Function to update iLO firmware based on detected iLO version
+function Update-iLOFirmwareBasedOnVersion {
+  param($iloIPAddress, $iloUsername, $iloPassword, $firmwareFilePathiLO4, $firmwareFilePathiLO5)
+
+  # Establish a connection to iLO
+  $iloConnection = Connect-HPiLO -Server $iloIPAddress -Username $iloUsername -Password $iloPassword -DisableCertificateAuthentication
+
+  # Get iLO version
+  $iloVersion = $iloConnection.ServerInfo.iLOVersion
+
+  # Determine the iLO firmware file based on detected iLO version
+  if ($iloVersion -match '^iLO 4') {
+    $firmwareFilePath = $firmwareFilePathiLO4
+  } elseif ($iloVersion -match '^iLO 5') {
+    $firmwareFilePath = $firmwareFilePathiLO5
+  } else {
+    Write-Host "iLO version not supported: $($iloVersion)"
+    return
+  }
 
         # Update firmware
         Write-Host "Updating $iLOVersion firmware on server $IPAddress..."
         Update-HPEiLOFirmware -Connection $iLOConnection -Location $firmwareFilePath -Verbose
 
-        # Disconnect iLO
-        Disconnect-HPEiLO -Connection $iLOConnection
-    } catch {
-        Write-Host "Error updating iLO firmware on server $IPAddress: $_" -ForegroundColor Red
-    }
+  # Display the firmware update result
+  Write-Host "Update completed. Result: $($firmwareUpdateResult.Status)"
+}
+
+# Iterate through the servers and update their iLO firmware based on detected iLO version
+foreach ($server in $servers) {
+  Update-iLOFirmwareBasedOnVersion -iloIPAddress $server.address -iloUsername $iloUsername -iloPassword $iloPasswordPlainText -firmwareFilePathiLO4 $firmwareFilePathiLO4 -firmwareFilePathiLO5 $firmwareFilePathiLO5
 }
 
 # Read JSON file
@@ -49,7 +54,7 @@ $credential = Get-Credential -Message "Enter iLO username and password"
 
 # Prompt for desired host group
 $hostGroups = $jsonData.HostGroups | ForEach-Object { $_.GroupName }
-$selectedGroup = Read-Host -Prompt ("Enter the desired host group name (available groups: " + ($hostGroups -join ', ') + ")")
+$selectedGroup = Read-Host -Prompt "Enter the desired host group name (available groups: $($hostGroups -join ', '))"
 
 # Find the selected host group
 $group = $jsonData.HostGroups | Where-Object { $_.GroupName -eq $selectedGroup }
@@ -68,9 +73,4 @@ if ($group) {
         } elseif ($iLOVersion.Contains("ILO5")) {
             Update-ILOFirmware -IPAddress $server.IP -Credential $credential -iLOVersion "iLO5"
         } else {
-            Write-Host "Unsupported iLO version"
-        }
-    }
-} else {
-    Write-Host "Host group not found" -ForegroundColor Red
-}
+            Write-Host "Unsupported iLO version
