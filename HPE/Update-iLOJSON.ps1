@@ -21,17 +21,21 @@ foreach ($server in $iloServers.servers) {
 
     # Use the provided username and password for each iLO connection
     $iloCreds = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $iloUsername, $iloPassword
-    $connection = Connect-HPEiLO -IP $iloIP -Credential $iloCreds
+    $connection = Connect-HPEiLO -IP $iloIP -Credential $iloCreds -ErrorAction SilentlyContinue
 
-    # Update iLO firmware
-    try {
-        Write-Host "Updating iLO firmware on $($iloIP)..."
-        $updateResult = Update-HPEiLOFirmware -Connection $connection -Location $firmwareFilePath -Confirm:$false
-        Write-Host "Update successful. $($updateResult.Message)"
-    } catch {
-        Write-Host "Error updating iLO firmware: $($_.Exception.Message)"
-    } finally {
-        # Disconnect from iLO
-        Disconnect-HPEiLO -Connection $connection
+    if ($connection) {
+        # Update iLO firmware
+        try {
+            Write-Host "Updating iLO firmware on $($iloIP)..."
+            $updateResult = Update-HPEiLOFirmware -Connection $connection -Location $firmwareFilePath -Confirm:$false
+            Write-Host "Update successful. $($updateResult.Message)"
+        } catch {
+            Write-Host "Error updating iLO firmware: $($_.Exception.Message)"
+        } finally {
+            # Disconnect from iLO
+            Disconnect-HPEiLO -Connection $connection
+        }
+    } else {
+        Write-Host "Error connecting to iLO at IP $($iloIP). Please check the IP address and credentials."
     }
 }
