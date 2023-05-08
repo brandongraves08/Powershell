@@ -11,15 +11,16 @@ Import-Module -Name HPEiLOCmdlets
 # Read iLO IP addresses from JSON file
 $iloServers = (Get-Content -Path $iloIPsFile -Raw) | ConvertFrom-Json
 
+# Prompt user for iLO username and password
+$iloUsername = Read-Host -Prompt "Enter iLO username"
+$iloPassword = Read-Host -Prompt "Enter iLO password" -AsSecureString
+
 # Iterate through each iLO server and update firmware
 foreach ($server in $iloServers.servers) {
     $iloIP = $server.ip
-    $iloUsername = $server.username
-    $iloPassword = $server.password
 
-    # Connect to iLO
-    $securePassword = ConvertTo-SecureString $iloPassword -AsPlainText -Force
-    $iloCreds = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $iloUsername, $securePassword
+    # Use the provided username and password for each iLO connection
+    $iloCreds = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $iloUsername, $iloPassword
     $connection = Connect-HPEiLO -IP $iloIP -Credential $iloCreds
 
     # Update iLO firmware
