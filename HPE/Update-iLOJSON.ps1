@@ -1,51 +1,36 @@
-# Import HPE iLO cmdlets module
-Import-Module HPEiLOCmdlets
+# Define variables
+$iloIPsFile = "C:\path\to\ilo_ips.json"
+$firmwareFilePath = "C:\path\to\firmware.bin"
 
-# Define the location of your iLO firmware file and JSON file
-$iloFirmwareFilePath = "C:\path\to\your\iLO_firmware_file.bin"
-$jsonFilePath = "C:\path\to\your\servers_list.json"
-
-# Function to update iLO firmware on a server
-function Update-ILOFirmware {
-    param (
-        $IPAddress,
-        $Credential,
-        $FirmwarePath
-    )
-
-    try {
-        # Connect to iLO
-        $iLOConnection = Connect-HPEiLO -IP $IPAddress -Credential $Credential -DisableCertificateAuthentication
-
-        # Update firmware
-        Write-Host "Updating iLO firmware on server $IPAddress..."
-        Update-HPEiLOFirmware -Connection $iLOConnection -Location $FirmwarePath -Verbose
-
-        # Disconnect iLO
-        Disconnect-HPEiLO -Connection $iLOConnection
-    } catch {
-        Write-Host "Error updating iLO firmware on server $IPAddress: $_" -ForegroundColor Red
-    }
+# Import HPE iLO cmdlets
+if (!(Get-Module -ListAvailable -Name HPEiLOCmdlets)) {
+    Install-Module -Name HPEiLOCmdlets -Scope CurrentUser
 }
+Import-Module -Name HPEiLOCmdlets
 
-# Read JSON file
-$jsonData = Get-Content -Path $jsonFilePath | ConvertFrom-Json
+# Read iLO IP addresses from JSON file
+$iloServers = (Get-Content -Path $iloIPsFile -Raw) | ConvertFrom-Json
 
-# Prompt for username and password
-$credential = Get-Credential -Message "Enter iLO username and password"
+# Iterate through each iLO server and update firmware
+foreach ($server in $iloServers.servers) {
+    $iloIP = $server.ip
+    $iloUsername = $server.username
+    $iloPassword = $server.password
 
-# Prompt for desired host group
-$hostGroups = $jsonData.HostGroups | ForEach-Object { $_.GroupName }
-$selectedGroup = Read-Host -Prompt "Enter the desired host group name (available groups: $($hostGroups -join ', '))"
+    # Connect to iLO
+    $securePassword = ConvertTo-SecureString $iloPassword -AsPlainText -Force
+    $iloCreds = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $iloUsername, $securePassword
+    $connection = Connect-HPEiLO -IP $iloIP -Credential $iloCreds
 
-# Find the selected host group
-$group = $jsonData.HostGroups | Where-Object { $_.GroupName -eq $selectedGroup }
-
-if ($group) {
-    # Update iLO firmware for each server in the selected group
-    foreach ($server in $group.Servers) {
-        Update-ILOFirmware -IPAddress $server.IP -Credential $credential -FirmwarePath $iloFirmwareFilePath
+    # Update iLO firmware
+    try {
+        Write-Host "Updating iLO firmware on $($iloIP)..."
+        $updateResult = Update-HPEiLOFirmware -Connection $connection -Location $firmwareFilePath -Confirm:$false
+        Write-Host "Update successful. $($updateResult.Message)"
+    } catch {
+        Write-Host "Error updating iLO firmware: $($_.Exception.Message)"
+    } finally {
+        # Disconnect from iLO
+        Disconnect-HPEiLO -Connection $connection
     }
-} else {
-    Write-Host "Host group not found" -ForegroundColor Red
 }
