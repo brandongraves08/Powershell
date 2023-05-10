@@ -21,7 +21,7 @@ foreach ($server in $iloServers.servers) {
 
     # Use the provided username and password for each iLO connection
     $iloCreds = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $iloUsername, $iloPassword
-    $connection = Connect-HPEiLO -IP $iloIP -Credential $iloCreds -ErrorAction SilentlyContinue
+    $connection = Connect-HPEiLO -IP $iloIP -Credential $iloCreds -DisableCertificateAuthentication -verbose
 
     if ($connection) {
         # Update iLO firmware
