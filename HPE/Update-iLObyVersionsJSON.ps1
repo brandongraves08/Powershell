@@ -1,68 +1,56 @@
+# Define variables
+$iloIPsFile = "C:\path\to\ilo_ips.json"
+$firmwareFilePath_v4 = "C:\path\to\firmware_v4.bin"
+$firmwareFilePath_v5 = "C:\path\to\firmware_v5.bin"
+
 # Import HPE iLO cmdlets
-Import-Module HPEiLOCmdlets
+if (!(Get-Module -ListAvailable -Name HPEiLOCmdlets)) {
+    Install-Module -Name HPEiLOCmdlets -Scope CurrentUser
+}
+Import-Module -Name HPEiLOCmdlets
 
-# Path to the JSON file containing host information
-$jsonFilePath = "path\to\your\jsonfile.json"
+# Read iLO IP addresses from JSON file
+$iloServers = (Get-Content -Path $iloIPsFile -Raw) | ConvertFrom-Json
 
-# Paths to the firmware files
-$firmwarePathIlo4 = "path\to\your\ilo4_firmwarefile.bin"
-$firmwarePathIlo5 = "path\to\your\ilo5_firmwarefile.bin"
+# Prompt user for iLO username and password
+$iloUsername = Read-Host -Prompt "Enter iLO username"
+$iloPassword = Read-Host -Prompt "Enter iLO password" -AsSecureString
 
-# Read the JSON file and parse its content
-$jsonContent = Get-Content -Path $jsonFilePath -Raw
-$hostData = $jsonContent | ConvertFrom-Json
+# Iterate through each iLO server and update firmware
+foreach ($server in $iloServers.servers) {
+    $iloIP = $server.ip
 
-# Function to update iLO firmware
-function Update-IloFirmware {
-    param (
-        [string]$ipAddress,
-        [string]$username,
-        [string]$password,
-        [string]$firmwarePathIlo4,
-        [string]$firmwarePathIlo5
-    )
+    # Use the provided username and password for each iLO connection
+    $iloCreds = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $iloUsername, $iloPassword
+    $connection = Connect-HPEiLO -IP $iloIP -Credential $iloCreds -DisableCertificateAuthentication -verbose
 
-    try {
-        # Connect to iLO
-        $ilo = Connect-HPEiLO -IP $ipAddress -Username $username -Password $password
+    if ($connection) {
+        # Check iLO version
+        $iloVersion = (Get-HPEiLOServerInfo -Connection $connection).iLOType
 
-        # Get iLO version
-        $iloVersion = (Get-HPEiLOServerInfo -Connection $ilo).FirmwareVersion
-        
-        # Determine the firmware file path based on iLO version
-        if ($iloVersion -like "iLO 4*") {
-            $firmwarePath = $firmwarePathIlo4
-        } elseif ($iloVersion -like "iLO 5*") {
-            $firmwarePath = $firmwarePathIlo5
+        # Determine firmware file path based on iLO version
+        if ($iloVersion -eq "iLO 4") {
+            $firmwareFilePath = $firmwareFilePath_v4
+        } elseif ($iloVersion -eq "iLO 5") {
+            $firmwareFilePath = $firmwareFilePath_v5
         } else {
-            Write-Warning "Unsupported iLO version for $ipAddress: $iloVersion"
-            Disconnect-HPEiLO -Connection $ilo
-            return
+            Write-Host "Unsupported iLO version: $iloVersion"
+            Disconnect-HPEiLO -Connection $connection
+            continue
         }
 
         # Update iLO firmware
-        Write-Host "Updating iLO firmware for $ipAddress..."
-        $result = Update-HPEiLOFirmware -Connection $ilo -Location $firmwarePath -Confirm:$false
-
-        # Check the result
-        if ($result.Status -eq "success") {
-            Write-Host "Successfully updated iLO firmware for $ipAddress"
-        } else {
-            Write-Warning "Failed to update iLO firmware for $ipAddress"
+        try {
+            Write-Host "Updating $iloVersion firmware on $($iloIP)..."
+            $updateResult = Update-HPEiLOFirmware -Connection $connection -Location $firmwareFilePath -Confirm:$false
+            Write-Host "Update successful. $($updateResult.Message)"
+        } catch {
+            Write-Host "Error updating iLO firmware: $($_.Exception.Message)"
+        } finally {
+            # Disconnect from iLO
+            Disconnect-HPEiLO -Connection $connection
         }
-
-        # Disconnect from iLO
-        Disconnect-HPEiLO -Connection $ilo
-    } catch {
-        Write-Error "Error updating iLO firmware for $ipAddress: $_"
+    } else {
+        Write-Host "Error connecting to iLO at IP $($iloIP). Please check the IP address and credentials."
     }
-}
-
-# Iterate through hosts and update iLO firmware
-foreach ($host in $hostData.hosts) {
-    # Replace these with appropriate credentials for your environment
-    $username = "your_username"
-    $password = "your_password"
-    
-    Update-IloFirmware -ipAddress $host.ipAddress -username $username -password $password -firmwarePathIlo4 $firmwarePathIlo4 -firmwarePathIlo5 $firmwarePathIlo5
 }
