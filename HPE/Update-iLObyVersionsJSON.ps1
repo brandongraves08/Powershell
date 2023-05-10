@@ -2,6 +2,7 @@
 $iloIPsFile = "C:\path\to\ilo_ips.json"
 $firmwareFilePath_v4 = "C:\path\to\firmware_v4.bin"
 $firmwareFilePath_v5 = "C:\path\to\firmware_v5.bin"
+$skipVersion = "2.82"
 
 # Import HPE iLO cmdlets
 if (!(Get-Module -ListAvailable -Name HPEiLOCmdlets)) {
@@ -25,8 +26,17 @@ foreach ($server in $iloServers.servers) {
     $connection = Connect-HPEiLO -IP $iloIP -Credential $iloCreds -DisableCertificateAuthentication -verbose
 
     if ($connection) {
-        # Check iLO version
-        $iloVersion = (Get-HPEiLOServerInfo -Connection $connection).iLOType
+        # Check iLO version and firmware version
+        $iloInfo = Get-HPEiLOServerInfo -Connection $connection
+        $iloVersion = $iloInfo.iLOType
+        $iloFirmwareVersion = $iloInfo.FirmwareVersion
+
+        # Skip host if iLO firmware version is 2.82
+        if ($iloFirmwareVersion -eq $skipVersion) {
+            Write-Host "Skipping $($iloIP) due to iLO firmware version $skipVersion"
+            Disconnect-HPEiLO -Connection $connection
+            continue
+        }
 
         # Determine firmware file path based on iLO version
         if ($iloVersion -eq "iLO 4") {
